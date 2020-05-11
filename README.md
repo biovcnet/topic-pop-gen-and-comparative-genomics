@@ -27,4 +27,5 @@ _Instructors: Arkadiy Garber_
   * Making a codon alignment
 
 [Watch the lesson]()
-[Follow the tutorial]()
+
+[Follow the tutorial](https://github.com/Arkadiy-Garber/bvcn-binder-paml)
