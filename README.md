@@ -15,10 +15,9 @@ This BVCN topic will cover:
     * Recovery/removal of rRNA from metatranscriptomic data
 
 # Lesson 1
-### Title: Introduction to Transcriptomics
+### Title: Comparative Genomics using dN/dS, with PAML (Codeml)
 _Instructors: Arkadiy Garber_
 
-* Comparative Genomics using dN/dS, with PAML (Codeml)
 * Synonymous vs. nonsynonymous mutations: 
   * Estimating selection using dN/dS 
   * Limitations of dN/dS
