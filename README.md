@@ -14,8 +14,9 @@ This BVCN topic will cover:
     * Wetlab and _in silico_ rRNA depletion
     * Recovery/removal of rRNA from metatranscriptomic data
 
-# Lesson 1
-### Title: Comparative Genomics using dN/dS, with PAML (Codeml)
+# Lessons
+
+## Lesson 1 -- Comparative Genomics using dN/dS, with PAML (Codeml)
 _Instructors: Arkadiy Garber and Jake Weissman_
 
 * Synonymous vs. nonsynonymous mutations: 
