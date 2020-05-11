@@ -16,7 +16,7 @@ This BVCN topic will cover:
 
 # Lesson 1
 ### Title: Comparative Genomics using dN/dS, with PAML (Codeml)
-_Instructors: Arkadiy Garber_
+_Instructors: Arkadiy Garber and Jake Weissman_
 
 * Synonymous vs. nonsynonymous mutations: 
   * Estimating selection using dN/dS 
@@ -25,6 +25,8 @@ _Instructors: Arkadiy Garber_
   * PAML programs
   * Input and output files
   * Making a codon alignment
+  * The codeml.ctl file
+  * Running codeml
 
 [Watch the lesson]()
 
