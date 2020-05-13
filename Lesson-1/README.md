@@ -8,6 +8,7 @@ Part of the [Bioinformatics Virtual Coordination Network](https://biovcnet.githu
 
 
 ## Walkthrough (interspecies example with two homologous sequences)
+### Click the "launchbinder" link above to begin
 
 Enter the first direcotry
 
