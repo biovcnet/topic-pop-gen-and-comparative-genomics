@@ -32,3 +32,15 @@ _Instructors: Arkadiy Garber and Jake Weissman_
 [Watch the lesson]()
 
 [Follow the tutorial](https://github.com/Arkadiy-Garber/bvcn-binder-paml)
+
+## Lesson 2 -- An Extremely Brief Introduction to the McDonald-Krietman Test for Selection
+_Instructors: Jake Weissman_ and Arkadiy Garber
+
+* Why the MK-Test?
+* Intuition behind the test
+* Running the test on a large set of genes from *Listeria monocytogenes*
+
+[Watch the lesson]()
+
+[Follow the tutorial]()
+
