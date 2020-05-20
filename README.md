@@ -33,7 +33,7 @@ _Instructors: Arkadiy Garber and Jake Weissman_
 
 [Follow the tutorial](https://github.com/Arkadiy-Garber/bvcn-binder-paml)
 
-## Lesson 2 -- An Extremely Brief Introduction to the McDonald-Krietman Test for Selection
+## Lesson 2 -- An Extremely Brief Introduction to the McDonald-Kreitman Test for Selection
 _Instructors: Jake Weissman_ and Arkadiy Garber
 
 * Why the MK-Test?
