@@ -42,5 +42,7 @@ _Instructors: Jake Weissman_ and Arkadiy Garber
 
 [Watch the lesson]()
 
-[Follow the tutorial]()
+[Lecture Slides](https://github.com/biovcnet/topic-pop-gen-and-comparative-genomics/blob/master/Lesson-2/TeX/lesson-mkt.pdf)
+
+[Follow the tutorial](https://biovcnet.github.io/_pages/lesson-mktest)
 
