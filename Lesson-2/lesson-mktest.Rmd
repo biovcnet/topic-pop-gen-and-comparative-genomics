@@ -1,0 +1,218 @@
+---
+title: "MK-Test"
+author: "Jake L. Weissman"
+date: "May 19, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This lesson will teach you how to apply the [MK-test](https://www.nature.com/articles/351652a0) using the [`iMKT`](https://imkt.uab.cat/rpackage.html) R 
+package. This package includes a number of methodological extensions to the 
+MK-test that help correct for the influence of weak purifying selection which 
+can mask the influence of positive selection. We will implement one of these, 
+the [Fay, Wycoff, and Wu (FWW) correction](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1461725/), which basically just removes 
+low-frequency polymorphisms below some threshold (15% is a good baseline). 
+Importantly, iMKT also has a useful [web-interface](https://imkt.uab.cat/mkanalysis.html) where you can submit
+your genome alignments, which we will not be using (it is [well documented](https://imkt.uab.cat/aboutimkt.html) on
+their website, but being able to run the test locally is useful when trying
+to automate large-scale analyses).
+
+### Preparing the Data
+
+We are going to be working with an alignment of all genes from a number of 
+*Listeria monocytogenes* genomes as well as an *L. innocua* outgroup, obtained
+from the [ATGC](http://atgc.lbl.gov/atgc/) database. The data comes in an inconvenient format, and I've 
+included a helper script to extract alignments for individual genes which
+we will run in the command line from our main lesson folder:
+
+```{bash unpack}
+cd lesson-mktest/
+Scripts/reformatATGC_listeria.sh
+```
+
+I won't go into how this script works since it's not particularly relevant
+unless you are using data from ATGC, but it will create a folder
+called COGs (clusters of orthologous genes) in your Data/ directory that will contain infividual fasta files 
+corresponding to multiple alignments of each gene family. To get the analysis
+below to work with your own data you should produce a multiple alignment of
+you gene(s) of interest, with the last row in the alignment (entry in the fasta)
+being your outgroup. Importantly, `iMKT` requires that your outgroup always be the
+LAST entry, and that you have at least 4 sequences from your population to 
+assess polymorphism (so 5 sequences total).
+
+### `iMKT` Input
+
+Next we need to count synonymous and non-synonymous polymorphisms and 
+substitutions. The `iMKT` package wants these numbers in a very specific format,
+and will not work otherwise. Conveniently, they have provided us with a python
+script to process our alignments for us. You **MUST** have python2 installed on your machine with the pandas and pyfaidx modules for this script to work.
+
+```{bash pyscript}
+python2 Scripts/sfsFromFasta_v2.py --multiFasta  Data/COGs/synCOG270381.fasta --daf my_example.daf --div my_example.div --codonTable standard
+```
+
+This script created two files summarizing our diversity, my_example.div and my_example.daf. If you want more details about these formats see the `iMKT` documentation on their website.
+
+Inconveniently, this script doesn't actually output data in the correct format. It seems that columns have been reordered (likely in an update of the program), so we need to rearrange the output of their python script. We use `awk` to shuffle columns around (for details on how to use `awk` see the [Happy Belly Bioinformatics tutorial](https://astrobiomike.github.io/unix/six-glorious-commands)) 
+
+```{bash rearrange}
+awk '{print $1"\t"$3"\t"$2}' my_example.daf > my_example_rearranged.daf
+awk '{print $3"\t"$2"\t"$4"\t"$1}' my_example.div > my_example_rearranged.div
+```
+
+### Running the Test
+
+Finally, we can run the MK-test. Make sure you have already installed the iMKT package using devtools. I also use dplyr a lot so install that as well.
+
+```{r install}
+#Install dplyr
+if("dplyr" %in% rownames(installed.packages()) == FALSE){install.packages("dplyr")}
+#Make sure devtools installed
+if("devtools" %in% rownames(installed.packages()) == FALSE){install.packages("devtools")}
+# ## Install iMKT package from GitHub repository
+if("iMKT" %in% rownames(installed.packages()) == FALSE){devtools::install_github("sergihervas/iMKT")}
+library(iMKT)
+library(dplyr)
+```
+
+And now we simply load our input files into R and run the MK-test.
+
+```{r mktest}
+daf <- read.delim("my_example_rearranged.daf",
+                  header = T,
+                  stringsAsFactors = F)
+div <- read.delim("my_example_rearranged.div",
+                  header = T,
+                  stringsAsFactors = F)
+head(daf)
+head(div)
+standardMKT(daf, div)
+```
+
+Voila! Positive selection! I'd actually be a little careful here, `iMKT` is warning you that you don't have that many polymorphisms/substitutions in a couple cells in the table. In general, the more data you have the more polymorphisms you are going to get, which can be helpful.
+
+But wait, there's more. Positive selection can be masked by weak purifying selection in a gene. By removing low-frequency polymorphisms we can get a better picture of positive selection in a gene.
+
+```{r FWW}
+FWW(daf, div, listCutoffs = c(0, 0.15))
+```
+
+We didn't really see a difference here (since we were already seeing quite a lot of positive selection in this gene). But the difference will become apparent in a moment when we look across the whole genome. Finally, I want to note that you could have just uploaded the gene alignment to the [`iMKT` website](https://imkt.uab.cat/mkanalysis.html) to get the same result.
+
+### Automating a Genome-Wide Scan
+
+We want to search for selection in all 1463 gene alignments we have for *L. monocytogenes*. 
+
+First we will generate our input files using a for loop in bash.
+
+```{bash makeinputs, echo=TRUE, cache=FALSE, warning=FALSE, comment=FALSE, warning=FALSE, results = 'hide'}
+# First make a list of all your fasta files
+cd Data/COGs
+find -type f -name "*.fasta" | awk 'gsub("./","")' > ../cogs.txt
+
+# Now iterate over these files
+cd ../
+mkdir iMKTinput
+while read COG; do
+    #Run python script
+    python2 ../Scripts/sfsFromFasta_v2.py --multiFasta COGs/$COG --daf iMKTinput/$COG.daf.tmp --div iMKTinput/$COG.div.tmp --codonTable standard
+    #rearrange output
+    awk '{print $1"\t"$3"\t"$2}' iMKTinput/$COG.daf.tmp > iMKTinput/$COG.daf
+    awk '{print $3"\t"$2"\t"$4"\t"$1}' iMKTinput/$COG.div.tmp > iMKTinput/$COG.div
+    #delete intermediate files
+    rm iMKTinput/$COG.daf.tmp
+    rm iMKTinput/$COG.div.tmp
+done < cogs.txt
+
+# List output
+cd iMKTinput
+find -type f -name "*.daf" | awk 'gsub("./","")' > ../daf_files.txt
+```
+
+Now we will repeatedly run the MK test.
+
+```{r runiMKTall, echo=TRUE, cache=FALSE, warning=FALSE, comment=FALSE, warning=FALSE, results = 'hide'}
+dafs <- readLines("Data/daf_files.txt")
+mkt_list <- list()
+FWW_list <- list()
+for(i in 1:length(dafs)){
+  daf_file <- paste0("Data/iMKTinput/",
+                     dafs[i])
+  div_file <- gsub(".daf",".div",daf_file)
+  daf <- try(read.delim(daf_file,
+                    header = T,
+                    stringsAsFactors = F))
+  div <- try(read.delim(div_file,
+                    header = T,
+                    stringsAsFactors = F))
+  
+  mkt_list[[i]] <- try(standardMKT(daf, div))
+  FWW_list[[i]] <- try(FWW(daf, div, listCutoffs = c(0, 0.15)))
+}
+```
+
+In order to unpack our output into a nice dataframe we will define a couple of helper functions
+
+```{r helper}
+getP <- function(x){
+  if(!inherits(x,"try-error")){
+    x$Results$`Fishers exact test P-value`[2] %>% return()
+  } else {
+    return(NA)
+  }
+}
+getA <- function(x){
+  if(!inherits(x,"try-error")){
+    x$Results$alpha.symbol[2] %>% return()
+  } else {
+    return(NA)
+  }
+}
+```
+
+Finally we will unpack out outputs.
+
+```{r output}
+# MK-test
+p_vals <- data.frame(p=mkt_list %>% lapply("[",2) %>% unlist(),
+                     alpha=mkt_list %>% lapply("[",1) %>% unlist(),
+                     gene=dafs %>% gsub(pattern=".daf",replace=""),
+                     stringsAsFactors = FALSE) %>%
+  subset(!is.na(p))
+# FWW correction
+p_vals_FWW <- data.frame(p=FWW_list %>% lapply(getP) %>% unlist(),
+                     alpha=FWW_list %>% lapply(getA) %>% unlist(),
+                     gene=dafs %>% gsub(pattern=".daf",replace=""),
+                     stringsAsFactors = FALSE) %>%
+  subset(!is.na(p))
+```
+
+Notice that I am removing NA values where there weren't sufficient polymorphisms in the gene to perform the test (more data might help solve this). We should probably also correct for multiple testing.
+
+```{r correct}
+# MK-test
+p_vals$p.adj <- p.adjust(p_vals$p, method = "BH")
+# FWW correction
+p_vals_FWW$p.adj <- p.adjust(p_vals_FWW$p, method = "BH")
+```
+
+Finally, observe that with the FWW correction more genes have significant evidence of selection. 
+
+```{r sum}
+# MK-test
+sum(p_vals$p < 0.05)
+sum(p_vals$p.adj < 0.05)
+# FWW correction
+sum(p_vals_FWW$p < 0.05)
+sum(p_vals_FWW$p.adj < 0.05)
+```
+
+And now it's up to you. Do these genes do interesting things? Could selection be a spurious result of demographic changes? Not my problem, but it could be yours. For further reading on this and other tests for selection I highly recommend [Matthew Hahn's Book: Molecular Population Genetics](https://books.google.com/books/about/Molecular_Population_Genetics.html?id=3BDkswEACAAJ&source=kp_book_description).
+
+```{r interesting}
+interesting_genes <- p_vals_FWW %>% subset(p.adj < 0.05)
+head(interesting_genes)
+```
