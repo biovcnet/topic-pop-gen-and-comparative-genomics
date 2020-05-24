@@ -40,7 +40,7 @@ _Instructors: Jake Weissman_ and Arkadiy Garber
 * Intuition behind the test
 * Running the test on a large set of genes from *Listeria monocytogenes*
 
-[Watch the lesson]()
+[Watch the lesson](https://www.youtube.com/watch?v=73hhXirGP3k)
 
 [Lecture Slides](https://github.com/biovcnet/topic-pop-gen-and-comparative-genomics/blob/master/Lesson-2/TeX/lesson-mkt.pdf)
 
