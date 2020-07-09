@@ -1,0 +1,316 @@
+---
+title: "The Statistical Dangers of Between-Species Comparisons"
+author: "Jake L. Weissman"
+date: "July 4, 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+**Disclaimer:** This is intended to be a short introduction to the idea of phylogenetically
+structured data. My main goal is to make sure you know that you have to be careful
+when doing statistics on species data. If you want an introduction to
+phylogenetic comparative methods (a rich subfield of evolutionary biology) I recommend
+starting with [Luke Harmon's free online textbook](https://lukejharmon.github.io/pcm/) or
+any of [many other texts on the topic](https://link.springer.com/book/10.1007%2F978-3-662-43550-2) (or [workshop notes online](http://lukejharmon.github.io/ilhabela/) or [here](http://www.phytools.org/Cordoba2017/)).
+
+## Comparative Data
+
+This lesson is focused on how to deal with "phylogenetically structured" data. For
+example, imagine that we have some trait data for a set of species of bacteria, perhaps
+about mean cell size and minimum generation time. It is often supposed that larger cells
+are associated with rapid maximal growth rates. It seems that it would be a simple
+matter to test this association - one could simply calulate the correlation between
+the two variables. In fact, if you proceed without caution you run the risk of obtaining
+a significant, but spurious statistical result. 
+
+Some other examples of research questions involving phylogenetically structured data:  
+  - trying to associate pathogenicity with other traits (e.g., genome size)  
+  - trying to associate the traits of different species with different habitat types (e.g., do beige things live in the desert and dark green things in the forst)
+
+The problem is that most (simple) statistical tests (parametric and non-parametric) assume
+independent datapoints, and your data is anything but. Consider that the species in
+your dataset share an evolutionary history, leading their traits to share a hierarchical dependency
+structure. Any time you are making comparisons between sets of species, you need to 
+account for phylogenetic structure. [Felsenstein (1985)](https://www.jstor.org/stable/2461605) was the
+[first to really articulate the severity of this problem and provide an appropriate statistical treatment](https://doi.org/10.1086/703055) (the original linked  "phylogenetic independent constrasts"
+paper is very clearly written and I highly recommend it).
+
+I'm going to take you through this issue by generating some example phylogenetically-structured datasets in R
+and showing you how statistical tests can fail on these data.
+
+I want to emphasize that I am not just being nitpicky - it is very easy to get spurious results with
+comparative data. There is a great paragraph near the end of the original Felsenstein paper:
+
+*"Some reviewers of this paper felt that the message was  "rather nihilistic," and*
+*suggested that it would be much improved if I could present a simple and robust*
+*method that obviated the need to have an accurate knowledge of the phylogeny. I*
+*entirely sympathize, but do not have a method that solves the problem. The best*
+*we can do is perhaps to use pairs of close relatives as suggested above, although*
+*this discards at least half of the data. Comparative biologists may understandably*
+*feel frustrated upon being told that they need to know the phylogenies of their*
+*groups in great detail, when this is not something they had much interest in*
+*knowing. Nevertheless, efforts to cope with the effects of the phylogeny will have*
+*to be made. Phylogenies are fundamental to comparative biology; there is no * 
+*doing it without taking them into account." -  [Felsenstein (1985)](https://www.jstor.org/stable/2461605)*
+
+Before we start you will need to make sure you have several packages installed. The `ape`
+package is the general R package for dealing with phylogenies, and the `phytools`
+package has a ton of extra tools for manipulating and analyzing phylogenetic data.
+We will use a function in the `caper` package to check for phylogenetic signal and
+a function in the `picante` package to run phylogenetic generalized least squares (PGLS).
+
+```{r packages, results='hide', message=FALSE, warning=FALSE}
+if (!require("ggplot2")){
+  install.packages("ggplot2")
+  require("ggplot2")
+}
+if (!require("ape")){
+  install.packages("ape")
+  require("ape")
+}
+if (!require("phytools")){
+  install.packages("phytools")
+  require("phytools")
+}
+if (!require("picante")){
+  install.packages("picante")
+  require("picante")
+}
+if (!require("caper")){
+  install.packages("caper")
+  require("caper")
+}
+```
+
+## Spurious Results With Phylogenetic Structure
+
+Let's start be generating some random data to work with. I am going to simulate
+the evolution of two traits on a phylogeny, and we are going to see how often
+those traits end up with correlated values **even though they will have no real
+association** (other than evolving on the same tree, that is).
+
+First let's make some phylogenies:
+
+```{r phylogenies}
+# Generate 9 random phylogenies
+n_trees <- 9
+n_tips <- 1000
+trees <- replicate(n_trees, rcoal(n_tips), simplify = FALSE)
+par(mfrow=c(3,3))
+for(i in 1:n_trees){
+  plot.phylo(as.phylo(trees[[i]]), show.tip.label = FALSE)
+}
+par(mfrow=c(1,1))
+```
+
+Now I am going to simulate the evolution of two traits on each of these phylogenies. We
+don't need to get into it now, but I am using a simple [Brownian Motion](https://lukejharmon.github.io/pcm/chapter3_bmintro/) model of trait
+evolution that is pretty standard in the field. It results in normally-distributed
+changes in trait values along branches on the tree. Remember, I am going to let these
+traits evolve **independently** on the tree.
+
+```{r traits}
+# Randomly evolve two traits on these trees
+trait_df <- data.frame(Trait1 = numeric(0),
+                       Trait2 = numeric(0),
+                       Tree = numeric(0))
+for(i in 1:n_trees){
+  trait_df <- rbind(trait_df, 
+                    data.frame(Trait1 = fastBM(trees[[i]]),
+                               Trait2 = fastBM(trees[[i]]),
+                               Tree = i))
+}
+ggplot(trait_df,aes(x = Trait1, y = Trait2)) + 
+  geom_point() + 
+  stat_smooth(method="lm") + 
+  facet_wrap(vars(Tree), scales = "free")
+```
+
+Wow, based on the confidence intervals those regression lines I'd say that at least
+a few of these simulated datasets have some pretty significant statistical relationships between
+our two traits (you can check this yourself if you really want to). But these traits don't have any real relationship! 
+
+What if, instead, we let our traits evolve on a "star" shaped tree, where no hierarchical
+structure exists?
+
+```{r star}
+n_tips <-  10 # reduce number of tips just for plotting
+star <- starTree(1:n_tips, branch.lengths=rep(1,n_tips))
+plot.phylo(star, type = "fan" , show.tip.label = FALSE)
+```
+
+
+We see a very different pattern in our traits:
+
+```{r startraits}
+# What if we simulated trait evolution on a star phylogeny instead?
+n_tips <-  1000
+star <- starTree(1:n_tips, branch.lengths=rep(1,n_tips))
+star_df <- data.frame(Trait1 = numeric(0),
+                       Trait2 = numeric(0),
+                       Tree = numeric(0))
+for(i in 1:n_trees){
+  star_df <- rbind(star_df, 
+                    data.frame(Trait1 = fastBM(star),
+                               Trait2 = fastBM(star),
+                               Tree = i))
+}
+ggplot(star_df,aes(x = Trait1, y = Trait2)) + 
+  geom_point() + 
+  stat_smooth(method="lm") + 
+  facet_wrap(vars(Tree))
+```
+
+This time, because there is no phylogenetic structure, we don't end up with a
+spurious result.
+
+But why does phylogenetic structure lead us to a spurious result? There's a few
+ways to conceptualize this but I've always found the easiest to be the idea of "pseudoreplication".
+Pseudoreplication means you actually have fewer data points than you think you do. 
+
+It helps to imagine actual replication, where maybe you've accidentally duplicated your dataset,
+say 100 times.
+
+```{r replication}
+x <- rnorm(10)
+y <- rnorm(10)
+plot(x,y)
+cor.test(x,y)
+
+plot(rep(x,100),rep(y,100))
+cor.test(rep(x,100),rep(y,100))
+```
+
+By inflating the number of datapoints you have, you can force a significant result (see [Felsenstein (1985)](https://www.jstor.org/stable/2461605)
+for a discussion of this in terms of degrees of freedom - same idea).
+
+When you draw from a phylogeny, you are essentially replicating pieces of evolutionary
+history (you are double counting the times where two species were actually the same
+ancestral species) - hence "pseudoreplication". Changes in trait values that happened 
+early on in evolutionary history get propagated to many ofspring, artificially inflating the 
+importance of these changes.
+
+It is easiest to see this when looking at a balanced tree with two very diverged groups.
+
+```{r balanced}
+n_tips <- 2^10
+balanced <- stree(n_tips, type = "balanced", tip.label = NULL)
+balanced$edge.length <- rep(1,nrow(balanced$edge))
+balanced$edge.length[which(balanced$edge[,1]==1025)] <- 100
+plot(balanced, show.tip.label = FALSE)
+```
+
+When you simulate traits on this tree you get two distinct clusters
+
+```{r balanced traits}
+balanced_df <- data.frame(Trait1 = numeric(0),
+                       Trait2 = numeric(0),
+                       Tree = numeric(0))
+for(i in 1:n_trees){
+  balanced_df <- rbind(balanced_df, 
+                    data.frame(Trait1 = fastBM(balanced),
+                               Trait2 = fastBM(balanced),
+                               Tree = i))
+}
+ggplot(balanced_df,aes(x = Trait1, y = Trait2)) + 
+  geom_point() + 
+  stat_smooth(method="lm") + 
+  facet_wrap(vars(Tree))
+```
+
+Now, we really only have two datapoints here (our two major phylogenetic groups),
+but we have created the illusion of having over 1000, and this leads to our spurious results.
+Note that if you looked within either of our two clusters we would be unlikely to find any real
+trend. This idea is similar to that of [Simpson's Paradox](https://en.wikipedia.org/wiki/Simpson%27s_paradox), which you should also be wary of when aggregating data that might have underlying (non-phylogenetic) structure.
+
+## Testing for Phylogenetic Signal
+
+Often researchers will want to know if their trait has significant phylogenetic
+signal (for very fast-evolving traits evolutionary history may get "washed-out",
+making correcting for it unnecessary - though some will argue you should use phylogenetically
+corrected methods no-matter what).
+
+There are a few ways to do this, but we will use two common approaches ([the non-parametric 
+Bloomberg's K, which basically shuffles your tips, and the more traditional Pagel's 
+lambda](http://blog.phytools.org/2012/03/phylogenetic-signal-with-k-and.html)) implemented
+in the `caper` package. 
+
+Let's test for phylogenetic signal in the traits simulated on one of our first
+phylogenies:
+
+```{r phylosig}
+#Let's just look at the first tree
+traits_tree1 <- subset(trait_df, trait_df$Tree == 1)
+tree1 <- trees[[1]]
+
+phylosig(tree1, traits_tree1$Trait1, method = "K", test = TRUE)
+phylosig(tree1, traits_tree1$Trait1, method = "lambda", test = TRUE)
+phylosig(tree1, traits_tree1$Trait2, method = "K", test = TRUE)
+phylosig(tree1, traits_tree1$Trait2, method = "lambda", test = TRUE)
+```
+
+Looks like there's lots of phylogenetic signal in both of our simulated traits, as expected.
+
+## Correcting for Phylogenetic Signal
+
+There are lots of approaches and opinions on how to correct for phylogeny when, say,
+performing a regression. The oldest approach is Felsenstein's independent
+contrasts - where he realized you could look at changes calculated along branches
+on the tree rather than at tip values and that these changes should be independent 
+(there are some assumptions about the underlying model of trait evolution you need to make).
+
+A more modern method is phylogenetic generalized least squares (PGLS), where the phylogenetic
+relationships between organisms are combined with an assumed model of trait evolution, and
+then encoded directly into the covariance matrix of a geralized linear model. These are easy
+to implement in R (we will use the `picante` package, but you can also use functions from
+`phytools` and `caper`, as well as many other packages).
+
+```{r PGLS}
+traits_tree1$Species <- tree1$tip.label
+tree1.data <- comparative.data(tree1, traits_tree1, names.col="Species", vcv.dim=2, warn.dropped=TRUE)
+model.tree1 <- pgls(Trait1~Trait2, data=tree1.data)
+summary(model.tree1)
+```
+
+Observe that after correcting for phylogeny, there is no relationship between
+our two traits (which is correct). Note that we assume a Brownian Motion model
+of trait evolution when fitting our model (which was used to generate the original data so is correct, usually we won't know the underlying model - see below).
+
+If you have discrete traits (e.g., presence/absence or count data) check out the `phylolm` package.
+
+## What Happens If You Use the Wrong Model?
+
+The problem with parametric methods (in general), is that if you assume the wrong
+model you can get spurious results. This is also true when picking an evolutionary
+model for PGLS. The two most commonly used models are based on common random processes:  
+  -  Brownian Motion, which is basically just random non-directional change  
+  -  [Ornstein-Uhlenbeck](https://lukejharmon.github.io/pcm/chapter6_beyondbm/), assumes directional change towards some optimum (slighlty more complicated)
+
+For example, below we fit a BM model to trait data generated with an OU process 
+and get an incorrect result (there should actually be no association).
+
+```{r OU}
+trait_OU_df <- data.frame(Trait1 = fastBM(tree1, mu = 10),
+                       Trait2 = fastBM(tree1, mu = 5))
+trait_OU_df$Species <- tree1$tip.label
+tree1.data <- comparative.data(tree1, trait_OU_df, names.col="Species", vcv.dim=2, warn.dropped=TRUE)
+model.tree1 <- pgls(Trait1~Trait2, data=tree1.data)
+summary(model.tree1)
+```
+
+There's lots of [tutorials](https://lukejharmon.github.io/ilhabela/instruction/2015/07/03/PGLS/) for this type of stuff online. Most packages at least incorporate BM and OU type models.
+
+I'll note that [recently there  has been an emphasis on models that take into account rate shifts in trait evolution across the tree](https://doi.org/10.1093/sysbio/syy031). That is, if the rate of trait evolution
+changes in different parts of your phylogeny (e.g., because of a change in mutation rate),
+it is possible to get spurious results unless you apply a model that accounts for this.
+
+Finally, you can do a lot of [other things than just look for trait associations](https://www.zoology.ubc.ca/prog/diversitree/)
+with this sort of data. For example, you can try and [infer the phenotypes of
+now-extinct ancestral species](https://en.wikipedia.org/wiki/Ancestral_reconstruction), or [see if traits influence the rate of diversification of
+a lineage](https://academic.oup.com/sysbio/article/56/5/701/1694265).
