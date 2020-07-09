@@ -46,3 +46,15 @@ _Instructors: Jake Weissman_ and Arkadiy Garber
 
 [Follow the tutorial](https://biovcnet.github.io/_pages/lesson-mktest)
 
+## Lesson 3 -- Phylogenetically Structured Data (aka The Statistical Dangers of Between-Species Comparisons)
+_Instructors: Jake Weissman_ and Ben Tully
+
+* Between-species comparative studies
+* Dealing with phylogenetic structure (detecting phylogenetic signal in traits, correcting for it with PGLS)
+
+[Watch the lesson]()
+
+[Lecture Slides](https://github.com/biovcnet/topic-pop-gen-and-comparative-genomics/blob/master/Lesson-3/lesson-phylogenetically-structured-data_slides.pdf)
+
+[Follow the tutorial](https://biovcnet.github.io/_pages/lesson-phylogenetically-structured-data)
+
