@@ -52,7 +52,7 @@ _Instructors: Jake Weissman_ and Ben Tully
 * Between-species comparative studies
 * Dealing with phylogenetic structure (detecting phylogenetic signal in traits, correcting for it with PGLS)
 
-[Watch the lesson]()
+[Watch the lesson](https://youtu.be/Y2tHcELmhUM)
 
 [Lecture Slides](https://github.com/biovcnet/topic-pop-gen-and-comparative-genomics/blob/master/Lesson-3/lesson-phylogenetically-structured-data_slides.pdf)
 
