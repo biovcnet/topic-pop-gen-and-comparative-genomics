@@ -29,7 +29,7 @@ _Instructors: Arkadiy Garber and Jake Weissman_
   * The codeml.ctl file
   * Running codeml
 
-[Watch the lesson]()
+[Watch the lesson](https://www.youtube.com/watch?v=NtFuHFp0xB4)
 
 [Follow the tutorial](https://github.com/Arkadiy-Garber/bvcn-binder-paml)
 
